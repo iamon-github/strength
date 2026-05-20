@@ -767,7 +767,7 @@ const EXERCISES = {
     name: 'Cable external rotation',
     cat: 'corrective',
     cues: ['Elbow tucked at side, 90°', 'Towel under elbow optional', 'Rotate forearm outward, keep elbow pinned', 'Slow return'],
-    video: 'tBR4N95asKo',
+    video: 'T_WCU7wjn4Y',
     img: 'Standing_Cable_External_Rotation'
   },
   'tricep_pushdown': {
@@ -1539,26 +1539,86 @@ function renderToday(root) {
 // Image base URL - free-exercise-db is public domain, hosted on GitHub
 const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
 
-function getExerciseImages(ex) {
-  if (!ex.img) return null;
-  return [
-    IMG_BASE + ex.img + '/0.jpg',
-    IMG_BASE + ex.img + '/1.jpg'
-  ];
+// Sensible starting weights for a detrained 64-65kg male returning after 5+ years
+// These are conservative anchors for day 1, the app then adapts via "easy/good/hard" feedback
+const STARTING_WEIGHTS = {
+  goblet_squat: 10,
+  front_squat: 20,        // empty bar
+  back_squat: 20,         // empty bar
+  leg_press: 40,
+  bulgarian_split_squat: 6, // each DB
+  leg_extension: 18,
+  rdl: 20,                // empty bar
+  trap_bar_dl: 40,
+  hip_thrust: 30,
+  leg_curl: 18,
+  back_extension: 0,      // bodyweight
+  db_bench: 8,            // each DB
+  db_incline: 6,          // each DB
+  bb_bench: 20,           // empty bar
+  machine_chest_press: 20,
+  db_shoulder_press: 5,   // each DB
+  landmine_press: 12,
+  machine_shoulder_press: 18,
+  lateral_raise: 3,       // each DB
+  cable_external_rot: 3,
+  tricep_pushdown: 12,
+  overhead_tricep: 8,
+  single_arm_db_row: 8,
+  chest_supported_row: 8, // each DB
+  seated_cable_row: 25,
+  single_arm_cable_row: 12,
+  face_pull: 15,
+  lat_pulldown: 25,
+  inverted_row: 0,        // bodyweight
+  bicep_curl: 5,          // each DB
+  hammer_curl: 6,         // each DB
+  suitcase_carry_left: 12,
+  goblet_carry: 12,
+  calf_raise: 30,
+  // Warmup / corrective / bodyweight - default to 0 (no weight)
+};
+
+function getStartingWeight(exId) {
+  if (STARTING_WEIGHTS.hasOwnProperty(exId)) return STARTING_WEIGHTS[exId];
+  return null; // unknown - app will prompt user
 }
 
-// Suggested weight based on history + RPE feedback
+function getExerciseImages(ex) {
+  if (!ex.img) return null;
+  // Try multiple naming variations since free-exercise-db naming is inconsistent
+  // The app will try each URL in order and use the first one that loads
+  const variations = [ex.img];
+
+  // Add common variations
+  if (ex.img.endsWith('s')) variations.push(ex.img.slice(0, -1)); // plural → singular
+  else variations.push(ex.img + 's'); // singular → plural
+
+  return variations.map(v => [
+    IMG_BASE + v + '/0.jpg',
+    IMG_BASE + v + '/1.jpg'
+  ]);
+}
+
+// Suggested weight based on history + RPE feedback, falling back to STARTING_WEIGHTS for day 1
 function getSuggestedWeight(exId, setIdx, repsTarget) {
   const history = [];
   Object.keys(state.logs).sort().reverse().forEach(d => {
     if (d === today()) return;
     const log = state.logs[d];
     if (log.sets[exId] && log.sets[exId].length > 0) {
-      history.push({ date: d, sets: log.sets[exId], feedback: log.rpeFeedback && log.rpeFeedback[exId] });
+      // Only consider non-warmup sets
+      const realSets = log.sets[exId].filter(s => !s.warmup);
+      if (realSets.length > 0) {
+        history.push({ date: d, sets: realSets, feedback: log.rpeFeedback && log.rpeFeedback[exId] });
+      }
     }
   });
 
-  if (history.length === 0) return null; // No history, ask user
+  if (history.length === 0) {
+    // No history yet — use starting weight database
+    return getStartingWeight(exId);
+  }
 
   const last = history[0];
   const lastSet = last.sets[Math.min(setIdx, last.sets.length - 1)] || last.sets[last.sets.length - 1];
@@ -1646,8 +1706,8 @@ function openDetail(exId, section, mainIdx) {
         <!-- Persistent animated image -->
         ${images ? `
           <div class="anim-wrap" id="animWrap">
-            <img id="animFrame" src="${images[0]}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
-            <div class="img-fallback-text">Image unavailable · tap video below</div>
+            <img id="animFrame" src="${images[0][0]}" alt="${ex.name} demo">
+            <div class="img-fallback-text">Image not available for this exercise · tap the video below</div>
           </div>
         ` : ''}
 
@@ -1715,15 +1775,51 @@ function openDetail(exId, section, mainIdx) {
 }
 
 let imageAnimInterval = null;
-function startImageAnimation(images) {
+function startImageAnimation(imageVariations) {
   if (imageAnimInterval) clearInterval(imageAnimInterval);
-  let frame = 0;
-  imageAnimInterval = setInterval(() => {
+
+  // imageVariations is now an array of arrays — try each variation
+  // Test which variation actually loads, then use it
+  let activeImages = null;
+  let testIdx = 0;
+
+  function tryNextVariation() {
+    if (testIdx >= imageVariations.length) {
+      // None worked
+      const wrap = document.getElementById('animWrap');
+      if (wrap) wrap.classList.add('img-failed');
+      return;
+    }
+    const test = new Image();
+    test.onload = () => {
+      activeImages = imageVariations[testIdx];
+      startActualAnimation();
+    };
+    test.onerror = () => {
+      testIdx++;
+      tryNextVariation();
+    };
+    test.src = imageVariations[testIdx][0];
+  }
+
+  function startActualAnimation() {
+    let frame = 0;
+    // Preload both frames
+    const preload = new Image();
+    preload.src = activeImages[1];
+
     const img = document.getElementById('animFrame');
-    if (!img) { clearInterval(imageAnimInterval); imageAnimInterval = null; return; }
-    frame = (frame + 1) % images.length;
-    img.src = images[frame];
-  }, 900);
+    if (img && activeImages) img.src = activeImages[0];
+
+    imageAnimInterval = setInterval(() => {
+      const img = document.getElementById('animFrame');
+      if (!img) { clearInterval(imageAnimInterval); imageAnimInterval = null; return; }
+      frame = (frame + 1) % activeImages.length;
+      img.src = activeImages[frame];
+    }, 900);
+  }
+
+  tryNextVariation();
 }
 function stopImageAnimation() {
   if (imageAnimInterval) { clearInterval(imageAnimInterval); imageAnimInterval = null; }
@@ -1794,13 +1890,13 @@ function renderActiveSetPanel() {
         <button class="btn-primary set-action-btn" onclick="completeSet()">Done — start rest</button>
       ` : `
         <div class="weight-config">
-          <p class="weight-config-lbl">Weight</p>
+          <p class="weight-config-lbl">Weight ${isFirstSession(a.exId) && w !== null ? '· starting suggestion' : ''}</p>
           <div class="weight-adjust">
             <button onclick="adjustWeight(-2.5)" class="wt-btn">−2.5</button>
             <input type="number" inputmode="decimal" step="0.5" id="setWeight" value="${w !== null ? w : ''}" placeholder="kg">
             <button onclick="adjustWeight(2.5)" class="wt-btn">+2.5</button>
           </div>
-          <p class="weight-target">target ${a.repsTarget} reps · RPE ${getCurrentRpeTarget()}</p>
+          <p class="weight-target">target ${a.repsTarget} reps · RPE ${getCurrentRpeTarget()}${isFirstSession(a.exId) ? ' · keep first set easy (RPE 5-6)' : ''}</p>
         </div>
         <button class="btn-primary set-action-btn" onclick="startSet()" ${w === null ? 'id="needsWeightBtn"' : ''}>${w !== null ? `Start set with ${w} kg` : 'Set weight to start'}</button>
       `}
@@ -1816,6 +1912,16 @@ function parseTargetReps(repsStr) {
   if (m) return String(Math.round((parseInt(m[1]) + parseInt(m[2])) / 2));
   const single = repsStr.match(/^(\d+)/);
   return single ? single[1] : '';
+}
+
+function isFirstSession(exId) {
+  // Check if user has ever logged this exercise before today
+  for (const d of Object.keys(state.logs)) {
+    if (d === today()) continue;
+    const log = state.logs[d];
+    if (log.sets[exId] && log.sets[exId].some(s => !s.warmup)) return false;
+  }
+  return true;
 }
 
 function getCurrentRpeTarget() {
