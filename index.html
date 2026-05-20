@@ -1584,20 +1584,26 @@ function getStartingWeight(exId) {
   return null; // unknown - app will prompt user
 }
 
-function getExerciseImages(ex) {
+function getExerciseImages(ex, exId) {
+  // If we have an ExerciseDB GIF for this exercise, use it (single animated GIF, not a pair)
+  if (state.exerciseDb && state.exerciseDb.gifs && state.exerciseDb.gifs[exId]) {
+    return { type: 'gif', url: state.exerciseDb.gifs[exId] };
+  }
+
+  // Fall back to free-exercise-db static photos
   if (!ex.img) return null;
-  // Try multiple naming variations since free-exercise-db naming is inconsistent
-  // The app will try each URL in order and use the first one that loads
+
   const variations = [ex.img];
+  if (ex.img.endsWith('s')) variations.push(ex.img.slice(0, -1));
+  else variations.push(ex.img + 's');
 
-  // Add common variations
-  if (ex.img.endsWith('s')) variations.push(ex.img.slice(0, -1)); // plural → singular
-  else variations.push(ex.img + 's'); // singular → plural
-
-  return variations.map(v => [
-    IMG_BASE + v + '/0.jpg',
-    IMG_BASE + v + '/1.jpg'
-  ]);
+  return {
+    type: 'photos',
+    variations: variations.map(v => [
+      IMG_BASE + v + '/0.jpg',
+      IMG_BASE + v + '/1.jpg'
+    ])
+  };
 }
 
 // Suggested weight based on history + RPE feedback, falling back to STARTING_WEIGHTS for day 1
@@ -1693,7 +1699,7 @@ function openDetail(exId, section, mainIdx) {
     setInProgress: false
   };
 
-  const images = getExerciseImages(ex);
+  const images = getExerciseImages(ex, exId);
 
   let html = `
     <div class="detail-screen" id="detailScreen">
@@ -1704,9 +1710,14 @@ function openDetail(exId, section, mainIdx) {
       <div class="detail-body">
 
         <!-- Persistent animated image -->
-        ${images ? `
+        ${images && images.type === 'gif' ? `
           <div class="anim-wrap" id="animWrap">
-            <img id="animFrame" src="${images[0][0]}" alt="${ex.name} demo">
+            <img id="animFrame" src="${images.url}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
+            <div class="img-fallback-text">Image not available · tap the video below</div>
+          </div>
+        ` : images && images.type === 'photos' ? `
+          <div class="anim-wrap" id="animWrap">
+            <img id="animFrame" src="${images.variations[0][0]}" alt="${ex.name} demo">
             <div class="img-fallback-text">Image not available for this exercise · tap the video below</div>
           </div>
         ` : ''}
@@ -1771,7 +1782,8 @@ function openDetail(exId, section, mainIdx) {
   document.body.appendChild(overlay.firstElementChild);
 
   // Start image animation
-  if (images) startImageAnimation(images);
+  // GIFs animate themselves; only run the alternating photo animation for photos
+  if (images && images.type === 'photos') startImageAnimation(images.variations);
 }
 
 let imageAnimInterval = null;
@@ -2490,6 +2502,23 @@ function renderSettings(root) {
       <button onclick="updateWeight()" style="font-size:13px;color:var(--text-2);">Update</button>
     </div>
 
+    <p class="section-label">Animations</p>
+
+    <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px;">
+      <div>
+        <p class="lbl">ExerciseDB animations</p>
+        <p class="desc">${(state.exerciseDb && state.exerciseDb.gifs && Object.keys(state.exerciseDb.gifs).length > 0)
+          ? `Connected · ${Object.keys(state.exerciseDb.gifs).length} GIFs loaded`
+          : 'Not connected — using static images'}</p>
+      </div>
+      ${(state.exerciseDb && state.exerciseDb.gifs && Object.keys(state.exerciseDb.gifs).length > 0)
+        ? `<div style="display:flex;gap:8px;">
+            <button onclick="refreshExerciseDb()" style="flex:1;font-size:13px;padding:10px;border-radius:8px;background:var(--surface-2);">Refresh GIFs</button>
+            <button onclick="disconnectExerciseDb()" style="flex:1;font-size:13px;padding:10px;border-radius:8px;background:var(--surface-2);color:var(--danger);">Disconnect</button>
+          </div>`
+        : `<button onclick="showExerciseDbSetup()" style="background:var(--accent);color:white;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;">Connect RapidAPI key</button>`}
+    </div>
+
     <p class="section-label">App</p>
 
     <div class="settings-row">
@@ -2622,6 +2651,275 @@ function showAbout() {
     </div>
   `;
   document.body.appendChild(modal);
+}
+
+// ============================================================
+// EXERCISEDB INTEGRATION
+// ============================================================
+// Maps our exercise IDs to ExerciseDB search terms
+// We'll search ExerciseDB and pick the best match per exercise
+const EXERCISEDB_NAME_MAP = {
+  goblet_squat: 'dumbbell goblet squat',
+  front_squat: 'barbell front squat',
+  back_squat: 'barbell full squat',
+  leg_press: 'leg press',
+  bulgarian_split_squat: 'dumbbell bulgarian split squat',
+  leg_extension: 'lever leg extension',
+  rdl: 'barbell romanian deadlift',
+  trap_bar_dl: 'trap bar deadlift',
+  hip_thrust: 'barbell hip thrust',
+  leg_curl: 'lever lying leg curl',
+  back_extension: 'hyperextension',
+  db_bench: 'dumbbell bench press',
+  db_incline: 'dumbbell incline bench press',
+  bb_bench: 'barbell bench press',
+  machine_chest_press: 'lever seated chest press',
+  db_shoulder_press: 'dumbbell seated shoulder press',
+  landmine_press: 'landmine press',
+  machine_shoulder_press: 'lever shoulder press',
+  lateral_raise: 'dumbbell lateral raise',
+  cable_external_rot: 'cable external rotation',
+  tricep_pushdown: 'cable triceps pushdown',
+  overhead_tricep: 'cable overhead triceps extension',
+  single_arm_db_row: 'dumbbell one arm row',
+  chest_supported_row: 'dumbbell incline row',
+  seated_cable_row: 'cable seated row',
+  single_arm_cable_row: 'cable one arm row',
+  face_pull: 'cable face pull',
+  lat_pulldown: 'cable lat pulldown',
+  pull_up: 'pull up',
+  inverted_row: 'inverted row',
+  bicep_curl: 'dumbbell biceps curl',
+  hammer_curl: 'dumbbell hammer curl',
+  bird_dog: 'bird dog',
+  side_plank: 'side plank',
+  dead_bug: 'dead bug',
+  pallof_press: 'pallof press',
+  suitcase_carry_left: 'dumbbell farmers walk',
+  goblet_carry: 'dumbbell farmers walk',
+  hanging_knee_raise: 'hanging knee raise',
+  calf_raise: 'standing calf raise',
+  foam_tspine: 'thoracic extension on foam roller',
+  cat_cow: 'cat cow',
+  wall_slides: 'wall slide',
+  band_pullapart: 'band pull apart',
+  prone_ytw: 'prone y raise',
+  serratus_pushup: 'push up plus',
+  open_book: 'open book stretch',
+  quad_tspine_rot: 'thoracic rotation',
+  dead_hang: 'dead hang',
+  pec_minor_stretch: 'doorway chest stretch',
+  lat_stretch_right: 'kneeling lat stretch',
+  scap_pullup: 'scapular pull up',
+  glute_activate: 'glute bridge',
+};
+
+function showExerciseDbSetup() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal">
+      <h2 class="serif" style="margin-bottom:8px;">Connect ExerciseDB</h2>
+      <p style="color:var(--text-2);font-size:13px;margin-bottom:14px;">Get real animated GIFs for every exercise.</p>
+
+      <div style="background:var(--surface-2);padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:13px;line-height:1.6;">
+        <p style="margin:0 0 6px;font-weight:500;">How this works</p>
+        <p style="margin:0;color:var(--text-2);">The app uses ~6 API calls one time to fetch all GIF URLs, then stores them permanently. After that, GIFs load directly from the ExerciseDB CDN. No API calls per workout, no rate limit issues.</p>
+      </div>
+
+      <p style="font-size:13px;color:var(--text-2);margin:0 0 6px;">Paste your X-RapidAPI-Key:</p>
+      <input type="password" id="rapidApiKey" placeholder="long string of letters and numbers" style="margin-bottom:12px;font-family:monospace;font-size:13px;" autocomplete="off">
+
+      <p style="font-size:11px;color:var(--text-3);margin:0 0 14px;line-height:1.5;">Find it on rapidapi.com → ExerciseDB → endpoints page → "X-RapidAPI-Key" field. Stored only on this phone.</p>
+
+      <div style="display:flex;gap:8px;">
+        <button onclick="this.closest('.modal-backdrop').remove()" class="btn-secondary" style="flex:1;">Cancel</button>
+        <button onclick="startExerciseDbSync()" class="btn-primary" style="flex:1;">Fetch GIFs</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function startExerciseDbSync() {
+  const key = document.getElementById('rapidApiKey').value.trim();
+  if (!key || key.length < 20) {
+    alert('Please paste a valid API key');
+    return;
+  }
+
+  // Close modal
+  document.querySelector('.modal-backdrop').remove();
+
+  // Show progress modal
+  const progress = document.createElement('div');
+  progress.className = 'modal-backdrop';
+  progress.id = 'syncProgress';
+  progress.innerHTML = `
+    <div class="modal">
+      <h2 class="serif" style="margin-bottom:14px;">Fetching exercise GIFs…</h2>
+      <p id="syncStatus" style="font-size:14px;color:var(--text-2);margin:0 0 10px;">Connecting to ExerciseDB…</p>
+      <div style="background:var(--surface-2);height:6px;border-radius:3px;overflow:hidden;margin-bottom:14px;">
+        <div id="syncBar" style="background:var(--accent);height:100%;width:0%;transition:width 0.3s;"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin:0;">This uses ~6 of your 10 daily API calls.</p>
+    </div>
+  `;
+  document.body.appendChild(progress);
+
+  try {
+    await syncExerciseDb(key);
+    document.getElementById('syncStatus').textContent = 'Done! Refreshing…';
+    document.getElementById('syncBar').style.width = '100%';
+    setTimeout(() => {
+      document.getElementById('syncProgress').remove();
+      render();
+      showToast('Animations connected');
+    }, 800);
+  } catch (e) {
+    document.getElementById('syncProgress').remove();
+    alert('Could not connect: ' + e.message);
+  }
+}
+
+async function syncExerciseDb(apiKey) {
+  const updateStatus = (msg, pct) => {
+    const el = document.getElementById('syncStatus');
+    if (el) el.textContent = msg;
+    const bar = document.getElementById('syncBar');
+    if (bar) bar.style.width = pct + '%';
+  };
+
+  // Fetch all exercises from ExerciseDB
+  // Use pagination - ExerciseDB has ~1300 exercises, so we fetch in batches of 200
+  updateStatus('Fetching exercise list (1/5)…', 10);
+  let allExercises = [];
+  const limit = 200;
+  let offset = 0;
+  let pages = 0;
+  const maxPages = 8; // safety cap
+
+  while (pages < maxPages) {
+    const url = `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=${offset}`;
+    const resp = await fetch(url, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com'
+      }
+    });
+    if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) throw new Error('Invalid API key. Check it on RapidAPI.');
+      if (resp.status === 429) throw new Error('Rate limited. Try again tomorrow (10 calls/day free tier).');
+      throw new Error(`API error: ${resp.status}`);
+    }
+    const batch = await resp.json();
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    allExercises = allExercises.concat(batch);
+    offset += limit;
+    pages++;
+    updateStatus(`Fetched ${allExercises.length} exercises… (${pages+1}/5)`, 10 + pages * 15);
+    if (batch.length < limit) break;
+  }
+
+  if (allExercises.length === 0) {
+    throw new Error('No exercises returned. API might be down.');
+  }
+
+  updateStatus(`Matching ${allExercises.length} exercises to your program…`, 80);
+
+  // Build a lowercase name -> exercise map for matching
+  const byName = {};
+  allExercises.forEach(ex => {
+    if (ex.name && ex.gifUrl) {
+      byName[ex.name.toLowerCase()] = ex;
+    }
+  });
+
+  // Map our exercises
+  const gifs = {};
+  let matched = 0;
+  let unmatched = [];
+
+  for (const [ourId, searchName] of Object.entries(EXERCISEDB_NAME_MAP)) {
+    const lower = searchName.toLowerCase();
+    // Try exact match
+    let match = byName[lower];
+
+    // Try fuzzy match: find exercise where all words in searchName appear in the name
+    if (!match) {
+      const words = lower.split(' ').filter(w => w.length > 2);
+      const candidates = allExercises.filter(ex => {
+        if (!ex.name || !ex.gifUrl) return false;
+        const exName = ex.name.toLowerCase();
+        return words.every(w => exName.includes(w));
+      });
+      if (candidates.length > 0) {
+        // Prefer the shortest name (most likely to be the canonical version)
+        candidates.sort((a, b) => a.name.length - b.name.length);
+        match = candidates[0];
+      }
+    }
+
+    if (match && match.gifUrl) {
+      gifs[ourId] = match.gifUrl;
+      matched++;
+    } else {
+      unmatched.push(ourId);
+    }
+  }
+
+  // Save to state
+  state.exerciseDb = {
+    apiKey: apiKey, // stored encrypted... well, just stored. It's local-only.
+    gifs: gifs,
+    syncedAt: today(),
+    matched: matched,
+    unmatched: unmatched
+  };
+  save();
+
+  updateStatus(`Matched ${matched} of ${Object.keys(EXERCISEDB_NAME_MAP).length} exercises`, 100);
+}
+
+async function refreshExerciseDb() {
+  if (!state.exerciseDb || !state.exerciseDb.apiKey) {
+    showToast('No API key stored');
+    return;
+  }
+  if (!confirm('This will use ~6 of your 10 daily API calls. Continue?')) return;
+
+  const progress = document.createElement('div');
+  progress.className = 'modal-backdrop';
+  progress.id = 'syncProgress';
+  progress.innerHTML = `
+    <div class="modal">
+      <h2 class="serif" style="margin-bottom:14px;">Refreshing GIFs…</h2>
+      <p id="syncStatus" style="font-size:14px;color:var(--text-2);margin:0 0 10px;">Connecting…</p>
+      <div style="background:var(--surface-2);height:6px;border-radius:3px;overflow:hidden;">
+        <div id="syncBar" style="background:var(--accent);height:100%;width:0%;transition:width 0.3s;"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(progress);
+
+  try {
+    await syncExerciseDb(state.exerciseDb.apiKey);
+    document.getElementById('syncProgress').remove();
+    render();
+    showToast('Refreshed');
+  } catch (e) {
+    document.getElementById('syncProgress').remove();
+    alert('Refresh failed: ' + e.message);
+  }
+}
+
+function disconnectExerciseDb() {
+  if (!confirm('Disconnect and remove cached GIFs? You will use static images.')) return;
+  delete state.exerciseDb;
+  save();
+  showToast('Disconnected');
+  render();
 }
 
 // ============================================================
