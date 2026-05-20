@@ -378,6 +378,113 @@ input:focus { outline: none; border-color: var(--accent); }
   font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
 }
 
+/* Animated exercise image (persistent) */
+.anim-wrap {
+  width: 100%; aspect-ratio: 4 / 3;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.anim-wrap img {
+  width: 100%; height: 100%; object-fit: contain;
+  transition: opacity 0.15s;
+  background: #ffffff;
+}
+.anim-wrap.img-failed img { display: none; }
+.anim-wrap .img-fallback-text {
+  display: none;
+  font-size: 13px; color: var(--text-2); padding: 30px;
+}
+.anim-wrap.img-failed .img-fallback-text { display: block; }
+
+/* Video toggle */
+.video-section { margin-bottom: 14px; }
+.video-toggle {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; font-size: 14px;
+  text-align: center; color: var(--text-2); font-weight: 500;
+}
+.video-wrap {
+  position: relative; padding-bottom: 56.25%; height: 0;
+  border-radius: 12px; overflow: hidden; background: #000;
+  margin-top: 8px;
+}
+.video-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Active set panel - the main interactive block */
+.set-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 18px;
+  margin: 16px 0;
+  text-align: center;
+}
+.set-panel-done {
+  background: var(--accent-soft); border-color: transparent;
+}
+.set-panel-finished {
+  background: var(--success-soft); border-color: transparent;
+}
+.set-panel .panel-label {
+  font-size: 12px; color: var(--text-2);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin: 0 0 4px;
+}
+.set-panel .panel-target {
+  font-size: 14px; color: var(--text-2); margin: 0 0 14px;
+}
+.weight-config { margin: 12px 0 18px; }
+.weight-config-lbl {
+  font-size: 11px; color: var(--text-2);
+  letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 8px;
+}
+.weight-adjust {
+  display: flex; gap: 8px; align-items: center; justify-content: center;
+}
+.weight-adjust input {
+  width: 120px; text-align: center; font-size: 22px; font-weight: 500;
+  padding: 10px; border-radius: 10px;
+  letter-spacing: -0.01em;
+}
+.wt-btn {
+  background: var(--surface-2); color: var(--text);
+  width: 44px; height: 44px; border-radius: 50%;
+  font-size: 14px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center;
+}
+.wt-btn:active { background: var(--border); }
+.weight-target {
+  font-size: 12px; color: var(--text-2); margin: 8px 0 0;
+}
+.set-action-btn {
+  margin-top: 6px;
+}
+.working-display { padding: 12px 0; }
+.working-w { font-size: 36px; font-weight: 300; margin: 0; letter-spacing: -0.02em; }
+.working-r { font-size: 13px; color: var(--text-2); margin: 4px 0 0; }
+.reps-actual-block { margin: 14px 0; }
+.reps-actual-block input {
+  font-size: 22px; padding: 10px; border-radius: 10px;
+}
+
+.feedback-buttons {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.fb-btn {
+  padding: 12px 8px; border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text);
+}
+.fb-btn:active { transform: scale(0.97); }
+.fb-easy { color: #2d6e3e; }
+.fb-good { background: var(--text); color: var(--bg); border-color: transparent; }
+.fb-hard { color: #a05030; }
+
 /* Photo prompt */
 .photo-prompt-card {
   background: var(--accent-soft); border: 1px solid transparent;
@@ -425,7 +532,8 @@ const EXERCISES = {
     name: 'Foam roller t-spine extension',
     cat: 'mobility',
     cues: ['Roller under mid-back, T5-T9 region', 'Hands behind head, extend back over roller', 'Move roller 1 inch, repeat at next level', 'Breathe deeply into upper back'],
-    video: 'gCNmsijJdFY'
+    video: 'gCNmsijJdFY',
+    img: 'Foam_Roll'
   },
   'open_book': {
     name: 'Open book stretch',
@@ -450,7 +558,8 @@ const EXERCISES = {
     name: 'Band pull-aparts',
     cat: 'mobility',
     cues: ['Arms straight, band at shoulder height', 'Pull band apart, squeeze shoulder blades', 'Slow return', 'Focus on right scapula retraction'],
-    video: '3Z8gLkTCVeg'
+    video: '3Z8gLkTCVeg',
+    img: 'Band_Pull_Apart'
   },
   'prone_ytw': {
     name: 'Prone Y-T-W raises',
@@ -482,7 +591,8 @@ const EXERCISES = {
     name: 'Dead hang',
     cat: 'corrective',
     cues: ['Full grip on bar, arms straight', 'Relax shoulders, let spine lengthen', 'Breathe normally, don\'t hold breath', 'Build time gradually'],
-    video: 'p2lOW0ndH00'
+    video: 'p2lOW0ndH00',
+    img: 'Dead_Hang'
   },
   'pec_minor_stretch': {
     name: 'Doorway pec stretch (right)',
@@ -518,25 +628,29 @@ const EXERCISES = {
     name: 'Goblet squat',
     cat: 'squat',
     cues: ['Hold dumbbell at chest, elbows down', 'Feet shoulder-width, toes slightly out', 'Sit between heels, knees track over toes', 'Chest stays tall, elbows brush inner knees at bottom'],
-    video: 'ShvTpCsgTiw'
+    video: 'ShvTpCsgTiw',
+    img: 'Goblet_Squat'
   },
   'front_squat': {
     name: 'Front squat',
     cat: 'squat',
     cues: ['Bar on front delts, elbows high', 'Brace, sit between heels', 'Knees track over toes', 'Drive elbows up through ascent'],
-    video: 'G-Vamqoy8qM'
+    video: 'G-Vamqoy8qM',
+    img: 'Front_Barbell_Squat'
   },
   'back_squat': {
     name: 'Barbell back squat',
     cat: 'squat',
     cues: ['Bar on upper traps (high-bar)', 'Brace hard, big breath', 'Sit back AND down, hips and knees together', 'Stay at RPE 7 — no max attempts'],
-    video: 'bEv6CCg2BC8'
+    video: 'bEv6CCg2BC8',
+    img: 'Barbell_Squat'
   },
   'leg_press': {
     name: 'Leg press',
     cat: 'squat',
     cues: ['Feet shoulder-width on platform', 'Lower until 90° knee bend', 'Back stays flat on pad', 'Drive through whole foot'],
-    video: '8zWDuWKdBZU'
+    video: 'K5n2vg3oZa4',
+    img: 'Leg_Press'
   },
   'bulgarian_split_squat': {
     name: 'Bulgarian split squat',
@@ -549,7 +663,8 @@ const EXERCISES = {
     name: 'Leg extension',
     cat: 'squat',
     cues: ['Pad on shin just above ankle', 'Squeeze quads at top, hold 1 sec', 'Slow eccentric (2 sec down)', 'Full range of motion'],
-    video: 'YyvSfVjQeL0'
+    video: 'YyvSfVjQeL0',
+    img: 'Leg_Extensions'
   },
 
   // === HINGE PATTERN ===
@@ -557,31 +672,36 @@ const EXERCISES = {
     name: 'Romanian deadlift',
     cat: 'hinge',
     cues: ['Soft knees (slight bend, no more)', 'Push hips back, bar slides down thighs', 'Stop when you feel hamstring stretch', 'Drive hips forward to stand'],
-    video: 'jEy_czb3RKA'
+    video: 'jEy_czb3RKA',
+    img: 'Romanian_Deadlift_with_Dumbbells'
   },
   'trap_bar_dl': {
     name: 'Trap bar deadlift',
     cat: 'hinge',
     cues: ['Step into bar, grip handles', 'Hips back, chest tall, neutral spine', 'Push floor away, hips and chest rise together', 'Lower with control'],
-    video: '6bnC3ivGa8M'
+    video: '6bnC3ivGa8M',
+    img: 'Trap_Bar_Deadlift'
   },
   'hip_thrust': {
     name: 'Hip thrust',
     cat: 'hinge',
     cues: ['Upper back on bench, bar over hips', 'Drive hips up, squeeze glutes hard at top', 'Ribs DOWN at top — don\'t hyperextend', 'Lower under control'],
-    video: 'xDmFkJxPzeM'
+    video: 'xDmFkJxPzeM',
+    img: 'Barbell_Hip_Thrust'
   },
   'leg_curl': {
     name: 'Leg curl (lying or seated)',
     cat: 'hinge',
     cues: ['Pad above ankle', 'Curl heel toward butt, full ROM', 'Slow eccentric', 'No bouncing'],
-    video: '8zWDuWKdBZU'
+    video: 'vl5nUdE9mWM',
+    img: 'Lying_Leg_Curls'
   },
   'back_extension': {
     name: '45° back extension',
     cat: 'hinge',
     cues: ['Hips on pad, body straight', 'Lower with hip hinge, keep spine neutral', 'Lift to straight line — don\'t hyperextend', 'Glutes do the work'],
-    video: 'EOOu3Y8eJZA'
+    video: 'EOOu3Y8eJZA',
+    img: 'Hyperextensions_With_No_Hyperextension'
   },
 
   // === HORIZONTAL PUSH ===
@@ -589,25 +709,29 @@ const EXERCISES = {
     name: 'Dumbbell bench press (flat)',
     cat: 'push',
     cues: ['Shoulder blades pinned back and down', 'DBs at chest level, elbows ~45°', 'Press up, slight inward arc', 'Each arm finds its own path'],
-    video: 'LzJNRGu24f0'
+    video: 'LzJNRGu24f0',
+    img: 'Dumbbell_Bench_Press'
   },
   'db_incline': {
     name: 'Incline dumbbell press',
     cat: 'push',
     cues: ['Bench at 30°, scaps retracted', 'DBs at upper chest', 'Press up, controlled descent', 'Stop just shy of locking out'],
-    video: 'PUrfhmHszU8'
+    video: 'PUrfhmHszU8',
+    img: 'Incline_Dumbbell_Press'
   },
   'bb_bench': {
     name: 'Barbell bench press',
     cat: 'push',
     cues: ['Scaps retracted and depressed', 'Bar touches lower chest', 'Elbows ~75°, drive bar back over face', 'Feet planted, mild leg drive'],
-    video: 'vcBig73ojpE'
+    video: 'vcBig73ojpE',
+    img: 'Barbell_Bench_Press_-_Medium_Grip'
   },
   'machine_chest_press': {
     name: 'Machine chest press',
     cat: 'push',
     cues: ['Adjust seat: handles at mid-chest', 'Squeeze chest at lockout (don\'t fully lock elbows)', 'Slow eccentric', 'Same path each rep'],
-    video: 'M_oHWuQhyMY'
+    video: 'M_oHWuQhyMY',
+    img: 'Machine_Bench_Press'
   },
 
   // === VERTICAL PUSH ===
@@ -615,43 +739,50 @@ const EXERCISES = {
     name: 'Seated DB shoulder press (neutral grip)',
     cat: 'push',
     cues: ['Bench upright, back supported', 'DBs at shoulder level, palms facing in', 'Press up, slight arc inward', 'Don\'t flare elbows wide'],
-    video: '02W0832OQos'
+    video: '02W0832OQos',
+    img: 'Seated_Dumbbell_Press'
   },
   'landmine_press': {
     name: 'Half-kneeling landmine press',
     cat: 'push',
     cues: ['Half-kneel, opposite knee up to pressing arm', 'Bar at shoulder, elbow tucked', 'Press up and slightly across', 'Ribs down, glute squeezed'],
-    video: 'gygpFvx_O3k'
+    video: 'gygpFvx_O3k',
+    img: 'Landmine_Press'
   },
   'machine_shoulder_press': {
     name: 'Machine shoulder press',
     cat: 'push',
     cues: ['Seat: handles at shoulder height', 'Press straight up', 'Don\'t shrug at top', 'Slow eccentric'],
-    video: 'Gu1t7X2yq4M'
+    video: 'Gu1t7X2yq4M',
+    img: 'Machine_Shoulder_(Military)_Press'
   },
   'lateral_raise': {
     name: 'DB lateral raise',
     cat: 'push',
     cues: ['Slight forward lean, slight elbow bend', 'Lead with elbows, not hands', 'Up to shoulder height only', 'Pause briefly, slow down'],
-    video: 'DXL18E7QRbk'
+    video: 'NZsldrqqca8',
+    img: 'Dumbbell_Lateral_Raise'
   },
   'cable_external_rot': {
     name: 'Cable external rotation',
     cat: 'corrective',
     cues: ['Elbow tucked at side, 90°', 'Towel under elbow optional', 'Rotate forearm outward, keep elbow pinned', 'Slow return'],
-    video: 'tBR4N95asKo'
+    video: 'tBR4N95asKo',
+    img: 'Standing_Cable_External_Rotation'
   },
   'tricep_pushdown': {
     name: 'Tricep pushdown',
     cat: 'push',
     cues: ['Elbows pinned to sides', 'Push down to full extension', 'Squeeze triceps 1 sec', 'Slow up to 90°'],
-    video: '6Fzep104f0s'
+    video: '6Fzep104f0s',
+    img: 'Triceps_Pushdown'
   },
   'overhead_tricep': {
     name: 'Overhead tricep extension',
     cat: 'push',
     cues: ['Cable or DB overhead', 'Elbows pointed forward, close to head', 'Lower behind head with control', 'Full extension at top'],
-    video: '_gsUck-7M74'
+    video: '_gsUck-7M74',
+    img: 'Standing_Overhead_Barbell_Triceps_Extension'
   },
 
   // === HORIZONTAL PULL ===
@@ -666,13 +797,15 @@ const EXERCISES = {
     name: 'Chest-supported DB row',
     cat: 'pull',
     cues: ['Chest on incline bench', 'DBs hang straight down', 'Pull to ribs, squeeze blades', 'Slow eccentric'],
-    video: 'fgSyNdEsqlM'
+    video: 'fgSyNdEsqlM',
+    img: 'T-Bar_Row_with_Handle'
   },
   'seated_cable_row': {
     name: 'Seated cable row',
     cat: 'pull',
     cues: ['Knees soft, chest up', 'Pull handle to lower ribs', 'Pinch shoulder blades', 'Don\'t lean back excessively'],
-    video: 'CrpbOUglg7o'
+    video: 'CrpbOUglg7o',
+    img: 'Seated_Cable_Rows'
   },
   'single_arm_cable_row': {
     name: 'Single-arm cable row',
@@ -685,7 +818,8 @@ const EXERCISES = {
     name: 'Face pull',
     cat: 'pull',
     cues: ['Rope at face height', 'Pull rope to face, hands part outward at end', 'External rotation of shoulders', 'High elbows, like double biceps pose'],
-    video: 'MiRAi2KOfRQ'
+    video: 'MiRAi2KOfRQ',
+    img: 'Face_Pull'
   },
 
   // === VERTICAL PULL ===
@@ -693,37 +827,43 @@ const EXERCISES = {
     name: 'Lat pulldown (neutral grip)',
     cat: 'pull',
     cues: ['Neutral grip handle', 'Lean back slight (5-10°)', 'Pull to upper chest, elbows down and back', 'Squeeze lats at bottom'],
-    video: 'O94yEoGXtBY'
+    video: 'O94yEoGXtBY',
+    img: 'Wide-Grip_Lat_Pulldown'
   },
   'pull_up': {
     name: 'Pull-up (assisted as needed)',
     cat: 'pull',
     cues: ['Full hang start', 'Initiate with shoulder blade depression', 'Chin clears bar', 'Slow eccentric to full hang'],
-    video: 'Hdc7Mw6BIEE'
+    video: 'Hdc7Mw6BIEE',
+    img: 'Pullups'
   },
   'inverted_row': {
     name: 'Inverted row',
     cat: 'pull',
     cues: ['Bar at hip height, body straight', 'Pull chest to bar', 'Body rigid throughout', 'Lower with control'],
-    video: 'GdyhjXlxE-U'
+    video: 'GdyhjXlxE-U',
+    img: 'Bodyweight_Row'
   },
   'scap_pullup': {
     name: 'Scapular pull-up',
     cat: 'corrective',
     cues: ['Full hang, arms straight throughout', 'Pull shoulder blades DOWN', 'Body rises slightly', 'No elbow bend'],
-    video: 'V0hzdT1CZnk'
+    video: 'V0hzdT1CZnk',
+    img: 'Pullups'
   },
   'bicep_curl': {
     name: 'Dumbbell bicep curl',
     cat: 'pull',
     cues: ['DBs at sides, palms forward at bottom', 'Curl up, supinate', 'Squeeze biceps at top', 'Slow eccentric'],
-    video: 'XE_pHwbst04'
+    video: 'XE_pHwbst04',
+    img: 'Dumbbell_Bicep_Curl'
   },
   'hammer_curl': {
     name: 'Hammer curl',
     cat: 'pull',
     cues: ['Palms face each other throughout', 'Curl up, elbows pinned', 'Squeeze at top', 'Slow lower'],
-    video: 'TwD-YGVP4Bk'
+    video: 'TwD-YGVP4Bk',
+    img: 'Hammer_Curls'
   },
 
   // === CORE / CARRY ===
@@ -769,7 +909,8 @@ const EXERCISES = {
     name: 'Hanging knee raise',
     cat: 'core',
     cues: ['Hang from bar, scaps active', 'Curl knees up toward chest', 'Pause briefly, slow lower', 'No swinging'],
-    video: 'Pr1ieGZ5atk'
+    video: 'Pr1ieGZ5atk',
+    img: 'Hanging_Leg_Raise'
   },
 
   // === CALF ===
@@ -777,7 +918,8 @@ const EXERCISES = {
     name: 'Standing calf raise',
     cat: 'calf',
     cues: ['Toes on platform, heels free', 'Full range: deep stretch at bottom, full squeeze at top', '1 sec pause at top', 'Slow eccentric'],
-    video: '21inrjhoFkQ'
+    video: '21inrjhoFkQ',
+    img: 'Standing_Calf_Raises'
   }
 };
 
@@ -1250,6 +1392,12 @@ function renderToday(root) {
   const lastExport = state.exportReminders.lastExportPrompt;
   const showExportPrompt = !lastExport || (new Date(today()) - new Date(lastExport)) >= 7 * dayMs();
 
+  // Morning pain prompt - show if it's a workout day and morning pain not logged
+  const showMorningPainPrompt = workout && log.painAm === null;
+
+  // Morning fueling reminder - show on workout days, dismiss-able per day
+  const showFuelReminder = workout && !log.fuelDismissed;
+
   let html = `
     <div class="app-header">
       <div>
@@ -1269,6 +1417,30 @@ function renderToday(root) {
       </div>
     </div>
   `;
+
+  if (showFuelReminder) {
+    html += `
+      <div class="card" style="background:var(--warn-soft);border:none;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="flex:1;">
+          <p style="font-size:13px;font-weight:500;margin:0 0 2px;">Before lifting</p>
+          <p style="font-size:12px;color:var(--text-2);margin:0;line-height:1.5;">Coffee + ~20g protein (yogurt, eggs, shake). Fasted heavy training at 64kg will tank performance.</p>
+        </div>
+        <button onclick="dismissFuel()" style="font-size:11px;color:var(--text-2);padding:4px 8px;flex-shrink:0;">Got it</button>
+      </div>
+    `;
+  }
+
+  if (showMorningPainPrompt) {
+    html += `
+      <div class="card-accent card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="flex:1;">
+          <p style="font-size:14px;font-weight:500;margin:0 0 2px;color:var(--accent);">Morning pain check</p>
+          <p style="font-size:12px;color:var(--text);margin:0;">Takes 5 seconds. Helps track if the program is working.</p>
+        </div>
+        <button onclick="currentTab='pain';render();" style="background:var(--accent);color:white;font-size:13px;padding:8px 14px;border-radius:8px;font-weight:500;flex-shrink:0;">Log</button>
+      </div>
+    `;
+  }
 
   if (showPhotoPrompt) {
     html += `
@@ -1364,6 +1536,42 @@ function renderToday(root) {
 // ============================================================
 // EXERCISE DETAIL SCREEN
 // ============================================================
+// Image base URL - free-exercise-db is public domain, hosted on GitHub
+const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
+
+function getExerciseImages(ex) {
+  if (!ex.img) return null;
+  return [
+    IMG_BASE + ex.img + '/images/0.jpg',
+    IMG_BASE + ex.img + '/images/1.jpg'
+  ];
+}
+
+// Suggested weight based on history + RPE feedback
+function getSuggestedWeight(exId, setIdx, repsTarget) {
+  const history = [];
+  Object.keys(state.logs).sort().reverse().forEach(d => {
+    if (d === today()) return;
+    const log = state.logs[d];
+    if (log.sets[exId] && log.sets[exId].length > 0) {
+      history.push({ date: d, sets: log.sets[exId], feedback: log.rpeFeedback && log.rpeFeedback[exId] });
+    }
+  });
+
+  if (history.length === 0) return null; // No history, ask user
+
+  const last = history[0];
+  const lastSet = last.sets[Math.min(setIdx, last.sets.length - 1)] || last.sets[last.sets.length - 1];
+  let suggested = lastSet.w;
+
+  // Adjust based on last session's feedback
+  if (last.feedback === 'easy') suggested += 2.5;
+  else if (last.feedback === 'hard') suggested = Math.max(0, suggested - 2.5);
+  // 'good' = same weight
+
+  return suggested;
+}
+
 function openDetail(exId, section, mainIdx) {
   const ex = EXERCISES[exId];
   if (!ex) return;
@@ -1376,11 +1584,13 @@ function openDetail(exId, section, mainIdx) {
   let repsTarget = '10';
   let rpeTarget = '7';
   let note = '';
+  let isWarmup = false;
 
   if (section === 'warmup') {
     setsTarget = 2;
     repsTarget = '10';
     rpeTarget = '6';
+    isWarmup = true;
   } else if (workout && workout.main[mainIdx]) {
     const item = workout.main[mainIdx];
     setsTarget = item.sets;
@@ -1392,7 +1602,7 @@ function openDetail(exId, section, mainIdx) {
   const log = getLog(today());
   const sets = log.sets[exId] || [];
 
-  // Get history for this exercise (last few sessions)
+  // History
   const history = [];
   Object.keys(state.logs).sort().reverse().slice(0, 30).forEach(d => {
     if (d === today()) return;
@@ -1400,9 +1610,30 @@ function openDetail(exId, section, mainIdx) {
       history.push({ date: d, sets: state.logs[d].sets[exId] });
     }
   });
-  const lastSession = history[0];
 
-  activeDetailExercise = { exId, section, mainIdx, setsTarget };
+  // Determine current set index = first un-logged set
+  let currentSetIdx = sets.length;
+  if (currentSetIdx >= setsTarget && setsTarget > 0) currentSetIdx = setsTarget; // all done
+
+  // Suggested weight for current set
+  let suggestedWeight = null;
+  if (!isWarmup) {
+    if (sets.length > 0) {
+      // Use the most recent set this session as the baseline
+      suggestedWeight = sets[sets.length - 1].w;
+    } else {
+      suggestedWeight = getSuggestedWeight(exId, currentSetIdx, repsTarget);
+    }
+  }
+
+  activeDetailExercise = {
+    exId, section, mainIdx, setsTarget, isWarmup,
+    repsTarget, currentSetIdx,
+    workingWeight: suggestedWeight,
+    setInProgress: false
+  };
+
+  const images = getExerciseImages(ex);
 
   let html = `
     <div class="detail-screen" id="detailScreen">
@@ -1411,67 +1642,55 @@ function openDetail(exId, section, mainIdx) {
         <div class="title">${ex.name}</div>
       </div>
       <div class="detail-body">
-        <div class="video-wrap" id="videoWrap">
-          <div class="video-placeholder">
-            <p style="margin:0;font-size:14px;opacity:0.7;">Tap to load technique video</p>
-            <button onclick="loadVideo('${ex.video}')">Watch demo</button>
+
+        <!-- Persistent animated image -->
+        ${images ? `
+          <div class="anim-wrap" id="animWrap">
+            <img id="animFrame" src="${images[0]}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
+            <div class="img-fallback-text">Image unavailable · tap video below</div>
           </div>
+        ` : ''}
+
+        <!-- Video collapsible -->
+        <div class="video-section">
+          <button class="video-toggle" onclick="toggleVideo('${ex.video}')">
+            <span id="videoToggleLabel">▶ Watch technique video</span>
+          </button>
+          <div class="video-wrap" id="videoWrap" style="display:none;"></div>
         </div>
 
-        <div class="detail-summary">
-          <div class="pill">
-            <div class="label">Target</div>
-            <div class="value">${setsTarget} × ${repsTarget}</div>
-          </div>
-          <div class="pill">
-            <div class="label">RPE</div>
-            <div class="value">${rpeTarget}</div>
-          </div>
-          ${lastSession ? `
-            <div class="pill">
-              <div class="label">Last</div>
-              <div class="value" style="font-size:13px;">${lastSession.sets[0].w}kg × ${lastSession.sets[0].r}</div>
-            </div>
-          ` : ''}
+        ${ex.biasNote ? `<div class="card-accent card" style="margin:12px 0;"><p style="margin:0;font-size:13px;"><strong style="color:var(--accent);">Asymmetric bias:</strong> ${ex.biasNote}</p></div>` : ''}
+        ${note ? `<div class="card" style="background:var(--warn-soft);border-color:transparent;margin:8px 0;"><p style="margin:0;font-size:13px;">${note}</p></div>` : ''}
+
+        <!-- Active set panel -->
+        <div id="activeSetPanel">
+          ${renderActiveSetPanel()}
         </div>
 
-        ${ex.biasNote ? `<div class="card-accent card" style="margin-bottom:12px;"><p style="margin:0;font-size:13px;"><strong style="color:var(--accent);">Asymmetric bias:</strong> ${ex.biasNote}</p></div>` : ''}
-        ${note ? `<div class="card" style="background:var(--warn-soft);border-color:transparent;margin-bottom:12px;"><p style="margin:0;font-size:13px;">${note}</p></div>` : ''}
+        <!-- Set history (this session) -->
+        ${sets.length > 0 ? `
+          <p class="section-label" style="margin:18px 0 6px;">This session</p>
+          <div class="card" style="padding:8px 14px;">
+            ${sets.map((s, i) => `
+              <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;display:flex;justify-content:space-between;align-items:center;">
+                <span>Set ${i+1}: <strong>${s.w}kg × ${s.r}</strong></span>
+                <button onclick="editSet('${exId}', ${i})" style="font-size:12px;color:var(--text-3);">Edit</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
 
-        <div class="cues-block">
+        <!-- Form cues -->
+        <div class="cues-block" style="margin-top:16px;">
           <p class="cues-title">Form cues</p>
           <ul>
             ${ex.cues.map(c => `<li>${c}</li>`).join('')}
           </ul>
         </div>
 
-        <p class="section-label" style="margin:18px 0 6px;">Log sets</p>
-        <div class="card" style="padding:4px 14px;">
-          ${Array.from({length: setsTarget}).map((_, i) => {
-            const setData = sets[i];
-            const isLogged = !!setData;
-            return `
-              <div class="set-row ${isLogged ? 'logged' : ''}" data-set-idx="${i}">
-                <div class="set-num">${i+1}</div>
-                <div class="input-group">
-                  <input type="number" inputmode="decimal" step="0.5" placeholder="kg" id="w_${i}" value="${setData ? setData.w : ''}" style="width:70px;">
-                  <span class="lbl">kg</span>
-                </div>
-                <div class="input-group">
-                  <input type="number" inputmode="numeric" placeholder="reps" id="r_${i}" value="${setData ? setData.r : ''}" style="width:70px;">
-                  <span class="lbl">reps</span>
-                </div>
-                <button class="log-btn" onclick="logSet('${exId}', ${i})">${isLogged ? '✓' : 'Log'}</button>
-              </div>
-            `;
-          }).join('')}
-          <div style="padding: 10px 0; text-align:center;">
-            <button onclick="addSet('${exId}')" style="font-size:13px;color:var(--text-2);">+ Add extra set</button>
-          </div>
-        </div>
-
-        ${history.length > 1 ? `
-          <p class="section-label" style="margin:24px 0 6px;">Recent sessions</p>
+        <!-- Previous sessions -->
+        ${history.length > 0 ? `
+          <p class="section-label" style="margin:24px 0 6px;">Previous sessions</p>
           <div class="card" style="padding:8px 14px;">
             ${history.slice(0, 5).map(h => `
               <div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
@@ -1482,7 +1701,7 @@ function openDetail(exId, section, mainIdx) {
           </div>
         ` : ''}
 
-        <div style="height:60px;"></div>
+        <div style="height:80px;"></div>
       </div>
     </div>
   `;
@@ -1490,51 +1709,250 @@ function openDetail(exId, section, mainIdx) {
   const overlay = document.createElement('div');
   overlay.innerHTML = html;
   document.body.appendChild(overlay.firstElementChild);
+
+  // Start image animation
+  if (images) startImageAnimation(images);
 }
 
-function loadVideo(ytId) {
-  const wrap = document.getElementById('videoWrap');
-  if (!wrap) return;
-  wrap.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+let imageAnimInterval = null;
+function startImageAnimation(images) {
+  if (imageAnimInterval) clearInterval(imageAnimInterval);
+  let frame = 0;
+  imageAnimInterval = setInterval(() => {
+    const img = document.getElementById('animFrame');
+    if (!img) { clearInterval(imageAnimInterval); imageAnimInterval = null; return; }
+    frame = (frame + 1) % images.length;
+    img.src = images[frame];
+  }, 900);
+}
+function stopImageAnimation() {
+  if (imageAnimInterval) { clearInterval(imageAnimInterval); imageAnimInterval = null; }
 }
 
-function closeDetail() {
-  const screen = document.getElementById('detailScreen');
-  if (screen) screen.remove();
-  activeDetailExercise = null;
-  render(); // Refresh today screen counts
+function renderActiveSetPanel() {
+  const a = activeDetailExercise;
+  if (!a) return '';
+  const log = getLog(today());
+  const sets = log.sets[a.exId] || [];
+  const allDone = sets.length >= a.setsTarget;
+
+  // All sets done — show RPE feedback prompt (only if not given)
+  if (allDone) {
+    const feedbackGiven = log.rpeFeedback && log.rpeFeedback[a.exId];
+    if (!feedbackGiven) {
+      return `
+        <div class="set-panel set-panel-done">
+          <p class="panel-label">Exercise complete</p>
+          <p style="font-size:16px;margin:8px 0 14px;">How was the weight overall?</p>
+          <div class="feedback-buttons">
+            <button onclick="setFeedback('${a.exId}', 'easy')" class="fb-btn fb-easy">Too easy</button>
+            <button onclick="setFeedback('${a.exId}', 'good')" class="fb-btn fb-good">Good</button>
+            <button onclick="setFeedback('${a.exId}', 'hard')" class="fb-btn fb-hard">Too hard</button>
+          </div>
+          <p style="font-size:11px;color:var(--text-3);margin:10px 0 0;text-align:center;">This helps the app suggest weights next time</p>
+        </div>
+      `;
+    }
+    return `
+      <div class="set-panel set-panel-finished">
+        <p style="margin:0;font-size:16px;font-weight:500;">${a.setsTarget} sets done ✓</p>
+        <button class="btn-primary" style="margin-top:12px;" onclick="closeDetail()">Back to workout</button>
+      </div>
+    `;
+  }
+
+  // Show current set panel
+  const setNum = sets.length + 1;
+  const w = a.workingWeight;
+
+  if (a.isWarmup) {
+    return `
+      <div class="set-panel">
+        <p class="panel-label">Set ${setNum} of ${a.setsTarget}</p>
+        <p class="panel-target">${a.repsTarget} reps · warmup pace</p>
+        ${a.setInProgress ? `
+          <button class="btn-primary set-action-btn" onclick="completeWarmupSet()">Set done</button>
+        ` : `
+          <button class="btn-primary set-action-btn" onclick="startSet()">Start set</button>
+        `}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="set-panel">
+      <p class="panel-label">Set ${setNum} of ${a.setsTarget}</p>
+      ${a.setInProgress ? `
+        <div class="working-display">
+          <p class="working-w">${w !== null ? w + ' kg' : '— kg'}</p>
+          <p class="working-r">target ${a.repsTarget} reps</p>
+        </div>
+        <div class="reps-actual-block">
+          <label style="font-size:13px;color:var(--text-2);">Actual reps completed:</label>
+          <input type="number" inputmode="numeric" id="actualReps" placeholder="${parseTargetReps(a.repsTarget)}" style="width:100px;margin:8px auto;display:block;text-align:center;font-size:18px;">
+        </div>
+        <button class="btn-primary set-action-btn" onclick="completeSet()">Done — start rest</button>
+      ` : `
+        <div class="weight-config">
+          <p class="weight-config-lbl">Weight</p>
+          <div class="weight-adjust">
+            <button onclick="adjustWeight(-2.5)" class="wt-btn">−2.5</button>
+            <input type="number" inputmode="decimal" step="0.5" id="setWeight" value="${w !== null ? w : ''}" placeholder="kg">
+            <button onclick="adjustWeight(2.5)" class="wt-btn">+2.5</button>
+          </div>
+          <p class="weight-target">target ${a.repsTarget} reps · RPE ${getCurrentRpeTarget()}</p>
+        </div>
+        <button class="btn-primary set-action-btn" onclick="startSet()" ${w === null ? 'id="needsWeightBtn"' : ''}>${w !== null ? `Start set with ${w} kg` : 'Set weight to start'}</button>
+      `}
+    </div>
+  `;
 }
 
-function logSet(exId, setIdx) {
-  const w = parseFloat(document.getElementById('w_' + setIdx).value);
-  const r = parseInt(document.getElementById('r_' + setIdx).value);
-  if (isNaN(w) || isNaN(r) || r <= 0) {
-    showToast('Enter weight and reps');
+function parseTargetReps(repsStr) {
+  // "8-10" -> "9", "10" -> "10", "AMRAP" -> ""
+  if (!repsStr) return '';
+  if (repsStr.includes('AMRAP')) return '';
+  const m = repsStr.match(/(\d+)-(\d+)/);
+  if (m) return String(Math.round((parseInt(m[1]) + parseInt(m[2])) / 2));
+  const single = repsStr.match(/^(\d+)/);
+  return single ? single[1] : '';
+}
+
+function getCurrentRpeTarget() {
+  const a = activeDetailExercise;
+  if (!a) return '-';
+  const phase = getPhase(currentWeek());
+  const dayType = currentDayType();
+  const workout = phase === 'deload' ? getDeloadWorkout(dayType) : PROGRAM[phase][dayType];
+  if (workout && workout.main[a.mainIdx]) return workout.main[a.mainIdx].rpe;
+  return '6';
+}
+
+function adjustWeight(delta) {
+  const a = activeDetailExercise;
+  if (!a) return;
+  const input = document.getElementById('setWeight');
+  const current = parseFloat(input.value) || 0;
+  const newW = Math.max(0, current + delta);
+  input.value = newW;
+  a.workingWeight = newW;
+  refreshSetPanel();
+}
+
+function startSet() {
+  const a = activeDetailExercise;
+  if (!a) return;
+  if (!a.isWarmup) {
+    const input = document.getElementById('setWeight');
+    const w = parseFloat(input.value);
+    if (isNaN(w) || w < 0) {
+      showToast('Set a weight first');
+      return;
+    }
+    a.workingWeight = w;
+  }
+  a.setInProgress = true;
+  refreshSetPanel();
+}
+
+function completeSet() {
+  const a = activeDetailExercise;
+  if (!a) return;
+  const repsInput = document.getElementById('actualReps');
+  const target = parseTargetReps(a.repsTarget);
+  const reps = parseInt(repsInput.value) || parseInt(target) || 0;
+  if (reps <= 0) {
+    showToast('Enter reps completed');
     return;
   }
+
   const log = getLog(today());
-  if (!log.sets[exId]) log.sets[exId] = [];
-  log.sets[exId][setIdx] = { w, r, t: Date.now() };
+  if (!log.sets[a.exId]) log.sets[a.exId] = [];
+  log.sets[a.exId].push({ w: a.workingWeight, r: reps, t: Date.now() });
   save();
 
-  // Update UI
-  const row = document.querySelector(`[data-set-idx="${setIdx}"]`);
-  if (row) {
-    row.classList.add('logged');
-    row.querySelector('.log-btn').textContent = '✓';
-  }
+  a.setInProgress = false;
+  refreshSetPanel();
+
+  // Refresh recent sets section by re-rendering
+  refreshFullDetail();
 
   // Start rest timer
   startRestTimer(90);
 }
 
-function addSet(exId) {
+function completeWarmupSet() {
+  const a = activeDetailExercise;
+  if (!a) return;
+  const log = getLog(today());
+  if (!log.sets[a.exId]) log.sets[a.exId] = [];
+  log.sets[a.exId].push({ w: 0, r: 0, t: Date.now(), warmup: true });
+  save();
+  a.setInProgress = false;
+  refreshSetPanel();
+  refreshFullDetail();
+  // Shorter rest for warmups
+  startRestTimer(30);
+}
+
+function setFeedback(exId, fb) {
+  const log = getLog(today());
+  if (!log.rpeFeedback) log.rpeFeedback = {};
+  log.rpeFeedback[exId] = fb;
+  save();
+  showToast(fb === 'good' ? 'Got it' : fb === 'easy' ? 'Next time: heavier' : 'Next time: lighter');
+  refreshSetPanel();
+}
+
+function refreshSetPanel() {
+  const panel = document.getElementById('activeSetPanel');
+  if (panel) panel.innerHTML = renderActiveSetPanel();
+}
+
+function refreshFullDetail() {
+  // Re-render just the recent sets - easier to just close and re-open
   if (!activeDetailExercise) return;
-  activeDetailExercise.setsTarget += 1;
-  // Re-open detail
-  openDetail(activeDetailExercise.exId, activeDetailExercise.section, activeDetailExercise.mainIdx);
-  const old = document.querySelectorAll('.detail-screen');
-  if (old.length > 1) old[0].remove();
+  const { exId, section, mainIdx } = activeDetailExercise;
+  const scrollY = window.scrollY;
+  stopImageAnimation();
+  closeDetail();
+  openDetail(exId, section, mainIdx);
+  window.scrollTo(0, scrollY);
+}
+
+function editSet(exId, setIdx) {
+  const log = getLog(today());
+  const s = log.sets[exId][setIdx];
+  const newW = prompt('Edit weight (kg):', s.w);
+  if (newW === null) return;
+  const newR = prompt('Edit reps:', s.r);
+  if (newR === null) return;
+  log.sets[exId][setIdx] = { ...s, w: parseFloat(newW), r: parseInt(newR) };
+  save();
+  refreshFullDetail();
+}
+
+function toggleVideo(ytId) {
+  const wrap = document.getElementById('videoWrap');
+  const label = document.getElementById('videoToggleLabel');
+  if (!wrap) return;
+  if (wrap.style.display === 'none') {
+    wrap.style.display = 'block';
+    wrap.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    label.textContent = '▼ Hide video';
+  } else {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    label.textContent = '▶ Watch technique video';
+  }
+}
+
+function closeDetail() {
+  stopImageAnimation();
+  const screen = document.getElementById('detailScreen');
+  if (screen) screen.remove();
+  activeDetailExercise = null;
+  render();
 }
 
 function markDayDone() {
@@ -2088,6 +2506,9 @@ function showAbout() {
       <h3 style="margin-bottom:6px;">If your scan shows different</h3>
       <p style="font-size:14px;line-height:1.6;margin-bottom:14px;">If your new scan shows a LEFT thoracic curve, flip the bias — left-side rows get the extra set, suitcase carry in RIGHT hand. If Cobb > 40°, talk to a Schroth-certified PT before proceeding.</p>
 
+      <h3 style="margin-bottom:6px;">Morning training</h3>
+      <p style="font-size:14px;line-height:1.6;margin-bottom:14px;">Training first thing means a cold body, especially relevant with a stiff back. Don't skip the warmup. Eat ~20g protein and have caffeine 30 min before lifting — fasted heavy work at your weight will hurt performance. Start the first working set 5-10% lighter than your usual and ramp up.</p>
+
       <h3 style="margin-bottom:6px;">Eat more</h3>
       <p style="font-size:14px;line-height:1.6;margin-bottom:14px;">At your starting weight, building muscle needs ~2500-2800 kcal/day and 130-150g protein. Without that, the training won't show.</p>
 
@@ -2108,6 +2529,11 @@ function ackPhoto() {
 }
 function skipPhoto() {
   state.photoLog.push({ date: today(), ack: false, skipped: true });
+  save();
+  render();
+}
+function dismissFuel() {
+  getLog(today()).fuelDismissed = true;
   save();
   render();
 }
