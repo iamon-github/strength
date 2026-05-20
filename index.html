@@ -2773,13 +2773,52 @@ async function startExerciseDbSync() {
     document.getElementById('syncStatus').textContent = 'Done! Refreshing…';
     document.getElementById('syncBar').style.width = '100%';
     setTimeout(() => {
-      document.getElementById('syncProgress').remove();
+      const p = document.getElementById('syncProgress');
+      if (p) p.remove();
       render();
-      showToast('Animations connected');
+      const count = state.exerciseDb && state.exerciseDb.gifs ? Object.keys(state.exerciseDb.gifs).length : 0;
+      showToast(`Connected · ${count} GIFs loaded`);
     }, 800);
   } catch (e) {
-    document.getElementById('syncProgress').remove();
-    alert('Could not connect: ' + e.message);
+    const p = document.getElementById('syncProgress');
+    if (p) p.remove();
+    showSyncError(e.message);
+  }
+}
+
+function showSyncError(msg) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal">
+      <h2 class="serif" style="margin-bottom:8px;">Sync failed</h2>
+      <p style="font-size:13px;color:var(--text);white-space:pre-wrap;background:var(--surface-2);padding:12px;border-radius:8px;font-family:monospace;font-size:12px;line-height:1.5;max-height:280px;overflow-y:auto;margin-bottom:14px;">${msg.replace(/</g, '&lt;')}</p>
+      <p style="font-size:12px;color:var(--text-2);margin:0 0 14px;">Share this with Claude to diagnose.</p>
+      <div style="display:flex;gap:8px;">
+        <button onclick="copyError(this)" data-msg="${msg.replace(/"/g, '&quot;').replace(/</g, '&lt;')}" class="btn-secondary" style="flex:1;">Copy details</button>
+        <button onclick="this.closest('.modal-backdrop').remove()" class="btn-primary" style="flex:1;">OK</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function copyError(btn) {
+  const msg = btn.getAttribute('data-msg');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(msg).then(() => {
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = 'Copy details'; }, 1500);
+    });
+  } else {
+    // fallback
+    const t = document.createElement('textarea');
+    t.value = msg;
+    document.body.appendChild(t);
+    t.select();
+    try { document.execCommand('copy'); btn.textContent = 'Copied ✓'; } catch(e){}
+    document.body.removeChild(t);
   }
 }
 
@@ -2791,14 +2830,88 @@ async function syncExerciseDb(apiKey) {
     if (bar) bar.style.width = pct + '%';
   };
 
-  // Fetch all exercises from ExerciseDB
-  // Use pagination - ExerciseDB has ~1300 exercises, so we fetch in batches of 200
-  updateStatus('Fetching exercise list (1/5)…', 10);
-  let allExercises = [];
+  // Diagnostic log we surface to the user if things go wrong
+  const diag = [];
+  function logd(msg) { diag.push(msg); console.log('[ExerciseDB]', msg); }
+
+  updateStatus('Connecting to ExerciseDB…', 5);
+
+  // First call: just fetch a small batch to see what the API returns
+  const probeUrl = `https://exercisedb.p.rapidapi.com/exercises?limit=10&offset=0`;
+  logd('Probe: ' + probeUrl);
+  let probeResp;
+  try {
+    probeResp = await fetch(probeUrl, {
+      headers: {
+        'X-RapidAPI-Key': apiKey,
+        'X-RapidAPI-Host': 'exercisedb.p.rapidapi.com'
+      }
+    });
+  } catch (e) {
+    throw new Error('Network error: ' + e.message + '\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+  }
+
+  logd('Probe status: ' + probeResp.status);
+  if (!probeResp.ok) {
+    if (probeResp.status === 401 || probeResp.status === 403) {
+      throw new Error('API key rejected. Check the key on RapidAPI.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+    }
+    if (probeResp.status === 429) {
+      throw new Error('Rate limited. The free tier is 10 calls/day, try again tomorrow.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+    }
+    const errText = await probeResp.text().catch(() => '(no body)');
+    logd('Probe error body: ' + errText.slice(0, 200));
+    throw new Error('API returned ' + probeResp.status + '.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+  }
+
+  const probeData = await probeResp.json();
+  logd('Probe data type: ' + (Array.isArray(probeData) ? 'array' : typeof probeData));
+
+  // The API might return: an array directly, or {exercises: [...]}, or {data: [...]}, or {results: [...]}
+  function unwrap(data) {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.exercises)) return data.exercises;
+    if (data && Array.isArray(data.data)) return data.data;
+    if (data && Array.isArray(data.results)) return data.results;
+    if (data && data.data && Array.isArray(data.data.exercises)) return data.data.exercises;
+    return null;
+  }
+
+  let probeArray = unwrap(probeData);
+  if (!probeArray) {
+    logd('Could not find array in response. Keys: ' + (probeData ? Object.keys(probeData).join(', ') : 'null'));
+    logd('Sample: ' + JSON.stringify(probeData).slice(0, 300));
+    throw new Error('Unexpected API response shape.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+  }
+
+  logd('Probe found ' + probeArray.length + ' exercises');
+  if (probeArray.length > 0) {
+    const sample = probeArray[0];
+    logd('Sample exercise keys: ' + Object.keys(sample).join(', '));
+    logd('Sample name: ' + sample.name);
+    logd('Sample gifUrl: ' + (sample.gifUrl || sample.gif_url || sample.image || sample.imageUrl || '(none)'));
+  }
+
+  // Determine which field has the GIF URL
+  const sampleEx = probeArray[0] || {};
+  const gifField = sampleEx.gifUrl ? 'gifUrl'
+    : sampleEx.gif_url ? 'gif_url'
+    : sampleEx.image ? 'image'
+    : sampleEx.imageUrl ? 'imageUrl'
+    : null;
+
+  if (!gifField) {
+    throw new Error('No GIF URL field in response. The API may have changed.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+  }
+  logd('Using field: ' + gifField);
+
+  // Now fetch the full list
+  updateStatus('Fetching all exercises…', 20);
+  let allExercises = probeArray.slice();
   const limit = 200;
-  let offset = 0;
+  let offset = 10; // we already have 10 from probe
   let pages = 0;
-  const maxPages = 8; // safety cap
+  const maxPages = 8;
 
   while (pages < maxPages) {
     const url = `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=${offset}`;
@@ -2809,73 +2922,87 @@ async function syncExerciseDb(apiKey) {
       }
     });
     if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) throw new Error('Invalid API key. Check it on RapidAPI.');
-      if (resp.status === 429) throw new Error('Rate limited. Try again tomorrow (10 calls/day free tier).');
-      throw new Error(`API error: ${resp.status}`);
+      if (resp.status === 429) {
+        logd('Rate limited at offset ' + offset + '. Using what we have (' + allExercises.length + ' exercises).');
+        break;
+      }
+      throw new Error('API error at offset ' + offset + ': ' + resp.status + '\\n\\nDiagnostic:\\n' + diag.join('\\n'));
     }
-    const batch = await resp.json();
-    if (!Array.isArray(batch) || batch.length === 0) break;
+    const data = await resp.json();
+    const batch = unwrap(data) || [];
+    logd('Batch at offset ' + offset + ': ' + batch.length + ' exercises');
+    if (batch.length === 0) break;
     allExercises = allExercises.concat(batch);
-    offset += limit;
+    offset += batch.length;
     pages++;
-    updateStatus(`Fetched ${allExercises.length} exercises… (${pages+1}/5)`, 10 + pages * 15);
+    updateStatus(`Fetched ${allExercises.length} exercises…`, 20 + pages * 12);
     if (batch.length < limit) break;
   }
 
+  logd('Total exercises fetched: ' + allExercises.length);
+
   if (allExercises.length === 0) {
-    throw new Error('No exercises returned. API might be down.');
+    throw new Error('No exercises returned.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
   }
 
-  updateStatus(`Matching ${allExercises.length} exercises to your program…`, 80);
+  updateStatus(`Matching ${allExercises.length} exercises to your program…`, 85);
 
-  // Build a lowercase name -> exercise map for matching
+  // Index by lowercase name
   const byName = {};
+  let withGif = 0;
   allExercises.forEach(ex => {
-    if (ex.name && ex.gifUrl) {
+    if (ex.name && ex[gifField]) {
       byName[ex.name.toLowerCase()] = ex;
+      withGif++;
     }
   });
+  logd('Exercises with GIF URL: ' + withGif);
 
-  // Map our exercises
+  // Match our exercises
   const gifs = {};
   let matched = 0;
   let unmatched = [];
 
   for (const [ourId, searchName] of Object.entries(EXERCISEDB_NAME_MAP)) {
     const lower = searchName.toLowerCase();
-    // Try exact match
     let match = byName[lower];
 
-    // Try fuzzy match: find exercise where all words in searchName appear in the name
     if (!match) {
       const words = lower.split(' ').filter(w => w.length > 2);
       const candidates = allExercises.filter(ex => {
-        if (!ex.name || !ex.gifUrl) return false;
+        if (!ex.name || !ex[gifField]) return false;
         const exName = ex.name.toLowerCase();
         return words.every(w => exName.includes(w));
       });
       if (candidates.length > 0) {
-        // Prefer the shortest name (most likely to be the canonical version)
         candidates.sort((a, b) => a.name.length - b.name.length);
         match = candidates[0];
       }
     }
 
-    if (match && match.gifUrl) {
-      gifs[ourId] = match.gifUrl;
+    if (match && match[gifField]) {
+      gifs[ourId] = match[gifField];
       matched++;
     } else {
       unmatched.push(ourId);
     }
   }
 
-  // Save to state
+  logd('Matched ' + matched + ' of ' + Object.keys(EXERCISEDB_NAME_MAP).length);
+  logd('First matched URL example: ' + (Object.values(gifs)[0] || '(none)'));
+
+  if (matched === 0) {
+    throw new Error('Matched 0 exercises. Something is wrong with name matching.\\n\\nDiagnostic:\\n' + diag.join('\\n'));
+  }
+
+  // Save
   state.exerciseDb = {
-    apiKey: apiKey, // stored encrypted... well, just stored. It's local-only.
+    apiKey: apiKey,
     gifs: gifs,
     syncedAt: today(),
     matched: matched,
-    unmatched: unmatched
+    unmatched: unmatched,
+    diag: diag.slice(-20) // keep recent log for debugging
   };
   save();
 
