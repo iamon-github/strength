@@ -379,6 +379,20 @@ input:focus { outline: none; border-color: var(--accent); }
 }
 
 /* Animated exercise image (persistent) */
+.img-tabs {
+  display: flex; gap: 4px; margin-bottom: 8px;
+  background: var(--surface-2); padding: 3px; border-radius: 10px;
+}
+.img-tab {
+  flex: 1; padding: 8px 12px; border-radius: 7px;
+  font-size: 13px; font-weight: 500; color: var(--text-2);
+  background: transparent; border: none;
+  transition: background 0.15s, color 0.15s;
+}
+.img-tab.active {
+  background: var(--surface); color: var(--text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
 .anim-wrap {
   width: 100%; aspect-ratio: 4 / 3;
   background: var(--surface);
@@ -1540,11 +1554,12 @@ function renderToday(root) {
 const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
 
 // Known ExerciseDB GIF IDs - these are public CDN URLs at static.exercisedb.dev/media/{id}.gif
-// Hardcoded so no API key needed. Will only be populated if hotlinking from that CDN works.
+// Hardcoded so no API key needed. Add more here as we confirm them.
 const EXERCISEDB_IDS = {
-  bb_bench: 'EIeI8Vf',       // barbell bench press
-  bicep_curl: 'vKilzz3',     // dumbbell biceps curl
-  back_squat: '5v7KYld',     // barbell squat
+  bb_bench: 'EIeI8Vf',         // barbell bench press (confirmed working)
+  bicep_curl: 'vKilzz3',       // dumbbell biceps curl (confirmed working by user)
+  back_squat: '5v7KYld',       // barbell full squat
+  trap_bar_dl: 'qXTaZnJ',      // barbell deadlift (close substitute)
 };
 
 // Sensible starting weights for a detrained 64-65kg male returning after 5+ years
@@ -1593,30 +1608,44 @@ function getStartingWeight(exId) {
 }
 
 function getExerciseImages(ex, exId) {
+  const sources = [];
+
   // 1. Hardcoded ExerciseDB GIF (no API key needed - public CDN)
   if (EXERCISEDB_IDS[exId]) {
-    return { type: 'gif', url: `https://static.exercisedb.dev/media/${EXERCISEDB_IDS[exId]}.gif` };
+    sources.push({
+      type: 'gif',
+      label: 'Animated',
+      url: `https://static.exercisedb.dev/media/${EXERCISEDB_IDS[exId]}.gif`
+    });
   }
 
-  // 2. RapidAPI-fetched ExerciseDB GIF (if user set it up)
-  if (state.exerciseDb && state.exerciseDb.gifs && state.exerciseDb.gifs[exId]) {
-    return { type: 'gif', url: state.exerciseDb.gifs[exId] };
+  // 2. RapidAPI-fetched ExerciseDB GIF (legacy, kept for users who set it up)
+  if (!EXERCISEDB_IDS[exId] && state.exerciseDb && state.exerciseDb.gifs && state.exerciseDb.gifs[exId]) {
+    sources.push({
+      type: 'gif',
+      label: 'Animated',
+      url: state.exerciseDb.gifs[exId]
+    });
   }
 
-  // 3. Fall back to free-exercise-db static photos (alternating 2-frame)
-  if (!ex.img) return null;
+  // 3. free-exercise-db static photos (alternating 2-frame)
+  if (ex.img) {
+    const variations = [ex.img];
+    if (ex.img.endsWith('s')) variations.push(ex.img.slice(0, -1));
+    else variations.push(ex.img + 's');
 
-  const variations = [ex.img];
-  if (ex.img.endsWith('s')) variations.push(ex.img.slice(0, -1));
-  else variations.push(ex.img + 's');
+    sources.push({
+      type: 'photos',
+      label: 'Photos',
+      variations: variations.map(v => [
+        IMG_BASE + v + '/0.jpg',
+        IMG_BASE + v + '/1.jpg'
+      ])
+    });
+  }
 
-  return {
-    type: 'photos',
-    variations: variations.map(v => [
-      IMG_BASE + v + '/0.jpg',
-      IMG_BASE + v + '/1.jpg'
-    ])
-  };
+  if (sources.length === 0) return null;
+  return sources;
 }
 
 // Suggested weight based on history + RPE feedback, falling back to STARTING_WEIGHTS for day 1
@@ -1722,16 +1751,18 @@ function openDetail(exId, section, mainIdx) {
       </div>
       <div class="detail-body">
 
-        <!-- Persistent animated image -->
-        ${images && images.type === 'gif' ? `
+        <!-- Persistent animated image with optional tabs -->
+        ${images && images.length > 0 ? `
+          ${images.length > 1 ? `
+            <div class="img-tabs">
+              ${images.map((src, i) => `
+                <button class="img-tab ${i === 0 ? 'active' : ''}" data-src-idx="${i}" onclick="switchImageSource(${i})">${src.label}</button>
+              `).join('')}
+            </div>
+          ` : ''}
           <div class="anim-wrap" id="animWrap">
-            <img id="animFrame" src="${images.url}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
+            <img id="animFrame" src="${images[0].type === 'gif' ? images[0].url : images[0].variations[0][0]}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
             <div class="img-fallback-text">Image not available · tap the video below</div>
-          </div>
-        ` : images && images.type === 'photos' ? `
-          <div class="anim-wrap" id="animWrap">
-            <img id="animFrame" src="${images.variations[0][0]}" alt="${ex.name} demo">
-            <div class="img-fallback-text">Image not available for this exercise · tap the video below</div>
           </div>
         ` : ''}
 
@@ -1795,8 +1826,43 @@ function openDetail(exId, section, mainIdx) {
   document.body.appendChild(overlay.firstElementChild);
 
   // Start image animation
-  // GIFs animate themselves; only run the alternating photo animation for photos
-  if (images && images.type === 'photos') startImageAnimation(images.variations);
+  // Start animation for first source if it's photos; GIFs animate themselves
+  if (images && images.length > 0 && images[0].type === 'photos') {
+    startImageAnimation(images[0].variations);
+  }
+  // Store current sources for tab switching
+  currentImageSources = images;
+}
+
+let currentImageSources = null;
+let currentImageSourceIdx = 0;
+
+function switchImageSource(idx) {
+  if (!currentImageSources || !currentImageSources[idx]) return;
+  currentImageSourceIdx = idx;
+
+  // Update tab styling
+  document.querySelectorAll('.img-tab').forEach((tab, i) => {
+    tab.classList.toggle('active', i === idx);
+  });
+
+  // Stop any current animation
+  stopImageAnimation();
+
+  const source = currentImageSources[idx];
+  const img = document.getElementById('animFrame');
+  const wrap = document.getElementById('animWrap');
+  if (!img || !wrap) return;
+
+  // Reset failure state
+  wrap.classList.remove('img-failed');
+
+  if (source.type === 'gif') {
+    img.src = source.url;
+  } else if (source.type === 'photos') {
+    img.src = source.variations[0][0];
+    startImageAnimation(source.variations);
+  }
 }
 
 let imageAnimInterval = null;
@@ -2080,6 +2146,8 @@ function toggleVideo(ytId) {
 
 function closeDetail() {
   stopImageAnimation();
+  currentImageSources = null;
+  currentImageSourceIdx = 0;
   const screen = document.getElementById('detailScreen');
   if (screen) screen.remove();
   activeDetailExercise = null;
