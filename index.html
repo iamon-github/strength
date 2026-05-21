@@ -1539,6 +1539,14 @@ function renderToday(root) {
 // Image base URL - free-exercise-db is public domain, hosted on GitHub
 const IMG_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/';
 
+// Known ExerciseDB GIF IDs - these are public CDN URLs at static.exercisedb.dev/media/{id}.gif
+// Hardcoded so no API key needed. Will only be populated if hotlinking from that CDN works.
+const EXERCISEDB_IDS = {
+  bb_bench: 'EIeI8Vf',       // barbell bench press
+  bicep_curl: 'vKilzz3',     // dumbbell biceps curl
+  back_squat: '5v7KYld',     // barbell squat
+};
+
 // Sensible starting weights for a detrained 64-65kg male returning after 5+ years
 // These are conservative anchors for day 1, the app then adapts via "easy/good/hard" feedback
 const STARTING_WEIGHTS = {
@@ -1585,12 +1593,17 @@ function getStartingWeight(exId) {
 }
 
 function getExerciseImages(ex, exId) {
-  // If we have an ExerciseDB GIF for this exercise, use it (single animated GIF, not a pair)
+  // 1. Hardcoded ExerciseDB GIF (no API key needed - public CDN)
+  if (EXERCISEDB_IDS[exId]) {
+    return { type: 'gif', url: `https://static.exercisedb.dev/media/${EXERCISEDB_IDS[exId]}.gif` };
+  }
+
+  // 2. RapidAPI-fetched ExerciseDB GIF (if user set it up)
   if (state.exerciseDb && state.exerciseDb.gifs && state.exerciseDb.gifs[exId]) {
     return { type: 'gif', url: state.exerciseDb.gifs[exId] };
   }
 
-  // Fall back to free-exercise-db static photos
+  // 3. Fall back to free-exercise-db static photos (alternating 2-frame)
   if (!ex.img) return null;
 
   const variations = [ex.img];
