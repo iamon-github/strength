@@ -408,12 +408,9 @@ input:focus { outline: none; border-color: var(--accent); }
   transition: opacity 0.15s;
   background: #ffffff;
 }
-.anim-wrap.img-failed img { display: none; }
-.anim-wrap .img-fallback-text {
-  display: none;
-  font-size: 13px; color: var(--text-2); padding: 30px;
-}
-.anim-wrap.img-failed .img-fallback-text { display: block; }
+.anim-wrap.img-failed { display: none !important; }
+.img-tabs.img-failed { display: none !important; }
+.anim-wrap .img-fallback-text { display: none; }
 
 /* Video toggle */
 .video-section { margin-bottom: 14px; }
@@ -546,8 +543,7 @@ const EXERCISES = {
     name: 'Foam roller t-spine extension',
     cat: 'mobility',
     cues: ['Roller under mid-back, T5-T9 region', 'Hands behind head, extend back over roller', 'Move roller 1 inch, repeat at next level', 'Breathe deeply into upper back'],
-    video: 'gCNmsijJdFY',
-    img: 'Foam_Roll'
+    video: 'gCNmsijJdFY'
   },
   'open_book': {
     name: 'Open book stretch',
@@ -605,8 +601,7 @@ const EXERCISES = {
     name: 'Dead hang',
     cat: 'corrective',
     cues: ['Full grip on bar, arms straight', 'Relax shoulders, let spine lengthen', 'Breathe normally, don\'t hold breath', 'Build time gradually'],
-    video: 'p2lOW0ndH00',
-    img: 'Dead_Hang'
+    video: 'p2lOW0ndH00'
   },
   'pec_minor_stretch': {
     name: 'Doorway pec stretch (right)',
@@ -760,8 +755,7 @@ const EXERCISES = {
     name: 'Half-kneeling landmine press',
     cat: 'push',
     cues: ['Half-kneel, opposite knee up to pressing arm', 'Bar at shoulder, elbow tucked', 'Press up and slightly across', 'Ribs down, glute squeezed'],
-    video: 'gygpFvx_O3k',
-    img: 'Landmine_Press'
+    video: 'gygpFvx_O3k'
   },
   'machine_shoulder_press': {
     name: 'Machine shoulder press',
@@ -775,14 +769,13 @@ const EXERCISES = {
     cat: 'push',
     cues: ['Slight forward lean, slight elbow bend', 'Lead with elbows, not hands', 'Up to shoulder height only', 'Pause briefly, slow down'],
     video: 'NZsldrqqca8',
-    img: 'Dumbbell_Lateral_Raise'
+    img: 'Side_Lateral_Raise'
   },
   'cable_external_rot': {
     name: 'Cable external rotation',
     cat: 'corrective',
     cues: ['Elbow tucked at side, 90°', 'Towel under elbow optional', 'Rotate forearm outward, keep elbow pinned', 'Slow return'],
-    video: 'T_WCU7wjn4Y',
-    img: 'Standing_Cable_External_Rotation'
+    video: 'T_WCU7wjn4Y'
   },
   'tricep_pushdown': {
     name: 'Tricep pushdown',
@@ -1754,15 +1747,14 @@ function openDetail(exId, section, mainIdx) {
         <!-- Persistent animated image with optional tabs -->
         ${images && images.length > 0 ? `
           ${images.length > 1 ? `
-            <div class="img-tabs">
+            <div class="img-tabs" id="imgTabs">
               ${images.map((src, i) => `
                 <button class="img-tab ${i === 0 ? 'active' : ''}" data-src-idx="${i}" onclick="switchImageSource(${i})">${src.label}</button>
               `).join('')}
             </div>
           ` : ''}
           <div class="anim-wrap" id="animWrap">
-            <img id="animFrame" src="${images[0].type === 'gif' ? images[0].url : images[0].variations[0][0]}" alt="${ex.name} demo" onerror="this.parentElement.classList.add('img-failed')">
-            <div class="img-fallback-text">Image not available · tap the video below</div>
+            <img id="animFrame" src="${images[0].type === 'gif' ? images[0].url : images[0].variations[0][0]}" alt="${ex.name} demo" onerror="handleImageError()">
           </div>
         ` : ''}
 
@@ -1865,6 +1857,30 @@ function switchImageSource(idx) {
   }
 }
 
+function handleImageError() {
+  // The currently-shown image source failed to load.
+  // For photos, the animation function tries variations itself, so this fires
+  // mainly for GIFs that 404. Hide the current source.
+  const wrap = document.getElementById('animWrap');
+  const tabs = document.getElementById('imgTabs');
+
+  if (!currentImageSources || currentImageSources.length <= 1) {
+    // Only one source and it failed — hide image area entirely, leaving just the video
+    if (wrap) wrap.classList.add('img-failed');
+    if (tabs) tabs.classList.add('img-failed');
+    return;
+  }
+
+  // Multiple sources: switch to the other one automatically
+  const nextIdx = currentImageSourceIdx === 0 ? 1 : 0;
+  // Remove the failed tab
+  const tabButtons = document.querySelectorAll('.img-tab');
+  if (tabButtons[currentImageSourceIdx]) {
+    tabButtons[currentImageSourceIdx].style.display = 'none';
+  }
+  switchImageSource(nextIdx);
+}
+
 let imageAnimInterval = null;
 function startImageAnimation(imageVariations) {
   if (imageAnimInterval) clearInterval(imageAnimInterval);
@@ -1876,9 +1892,23 @@ function startImageAnimation(imageVariations) {
 
   function tryNextVariation() {
     if (testIdx >= imageVariations.length) {
-      // None worked
-      const wrap = document.getElementById('animWrap');
-      if (wrap) wrap.classList.add('img-failed');
+      // None of the photo variations worked
+      if (currentImageSources && currentImageSources.length > 1) {
+        // There's another source (a GIF) — switch to it and hide the photos tab
+        const tabButtons = document.querySelectorAll('.img-tab');
+        // Find which tab is the photos one
+        currentImageSources.forEach((src, i) => {
+          if (src.type === 'photos' && tabButtons[i]) tabButtons[i].style.display = 'none';
+        });
+        const gifIdx = currentImageSources.findIndex(s => s.type === 'gif');
+        if (gifIdx >= 0) switchImageSource(gifIdx);
+      } else {
+        // Only source — hide image area entirely
+        const wrap = document.getElementById('animWrap');
+        const tabs = document.getElementById('imgTabs');
+        if (wrap) wrap.classList.add('img-failed');
+        if (tabs) tabs.classList.add('img-failed');
+      }
       return;
     }
     const test = new Image();
