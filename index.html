@@ -414,6 +414,13 @@ input:focus { outline: none; border-color: var(--accent); }
 
 /* Video toggle */
 .video-section { margin-bottom: 14px; }
+.report-video-btn {
+  width: 100%; margin-top: 8px; padding: 8px;
+  font-size: 12px; color: var(--text-3);
+  background: transparent; border: none;
+  text-align: center;
+}
+.report-video-btn:active { color: var(--text); }
 .video-toggle {
   width: 100%; background: var(--surface); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; font-size: 14px;
@@ -620,15 +627,15 @@ const EXERCISES = {
   'short_foot': {
     name: 'Short foot drill',
     cat: 'corrective',
-    cues: ['Stand barefoot, weight even', 'Without curling toes, draw ball of foot toward heel', 'Arch should lift slightly', 'Hold 5 sec, release'],
-    video: 'qoTTQGCWvy0',
+    cues: ['Stand barefoot, weight even', 'Without curling toes, draw ball of foot toward heel', 'Arch should lift slightly (foot "domes")', 'Hold 5 sec, release. Do NOT curl the toes'],
+    video: 'rS5ucOyfgSg',
     biasNote: 'Extra reps on the LEFT foot'
   },
   'single_leg_balance': {
     name: 'Single leg balance',
     cat: 'corrective',
     cues: ['Stand on one foot, slight knee bend', 'Eyes open initially, progress to closed', 'Maintain short-foot arch position', '30 sec each side'],
-    video: 'oCMcGq89vBw',
+    video: '7SF7AYh2_Yw',
     biasNote: 'LEFT side first, hold longer'
   },
 
@@ -709,7 +716,7 @@ const EXERCISES = {
     name: '45° back extension',
     cat: 'hinge',
     cues: ['Hips on pad, body straight', 'Lower with hip hinge, keep spine neutral', 'Lift to straight line — don\'t hyperextend', 'Glutes do the work'],
-    video: 'EOOu3Y8eJZA',
+    video: 'G67phY3O-yk',
     img: 'Hyperextensions_With_No_Hyperextension'
   },
 
@@ -787,9 +794,8 @@ const EXERCISES = {
   'overhead_tricep': {
     name: 'Overhead tricep extension',
     cat: 'push',
-    cues: ['Cable or DB overhead', 'Elbows pointed forward, close to head', 'Lower behind head with control', 'Full extension at top'],
-    video: '_gsUck-7M74',
-    img: 'Standing_Overhead_Barbell_Triceps_Extension'
+    cues: ['Cable rope overhead, face away from machine', 'Elbows pointed forward, close to head', 'Lower behind head with control', 'Extend fully at top, squeeze triceps'],
+    video: 'mRozZKkGIfg'
   },
 
   // === HORIZONTAL PULL ===
@@ -811,7 +817,7 @@ const EXERCISES = {
     name: 'Seated cable row',
     cat: 'pull',
     cues: ['Knees soft, chest up', 'Pull handle to lower ribs', 'Pinch shoulder blades', 'Don\'t lean back excessively'],
-    video: 'CrpbOUglg7o',
+    video: 'EU7bOadUsNI',
     img: 'Seated_Cable_Rows'
   },
   'single_arm_cable_row': {
@@ -1236,6 +1242,7 @@ let state = {
   profile: { height: 185, weight: 65, goalWeight: 72 },
   logs: {},   // date string => { sets: { exId: [{w,r}] }, painAm, painPm, notes }
   photoLog: [],  // array of { date, ack }
+  videoOverrides: {},  // exId => custom YouTube video ID set by user
   exportReminders: { lastExportPrompt: null }
 };
 
@@ -1759,12 +1766,19 @@ function openDetail(exId, section, mainIdx) {
         ` : ''}
 
         <!-- Video collapsible -->
+        ${getVideoId(exId, ex) ? `
         <div class="video-section">
-          <button class="video-toggle" onclick="toggleVideo('${ex.video}')">
+          <button class="video-toggle" onclick="toggleVideo('${getVideoId(exId, ex)}')">
             <span id="videoToggleLabel">▶ Watch technique video</span>
           </button>
           <div class="video-wrap" id="videoWrap" style="display:none;"></div>
+          <button class="report-video-btn" onclick="showVideoReplace('${exId}')">Wrong video? Replace it</button>
         </div>
+        ` : `
+        <div class="video-section">
+          <button class="report-video-btn" onclick="showVideoReplace('${exId}')" style="border:1px solid var(--accent);color:var(--accent);">+ Add a technique video</button>
+        </div>
+        `}
 
         ${ex.biasNote ? `<div class="card-accent card" style="margin:12px 0;"><p style="margin:0;font-size:13px;"><strong style="color:var(--accent);">Asymmetric bias:</strong> ${ex.biasNote}</p></div>` : ''}
         ${note ? `<div class="card" style="background:var(--warn-soft);border-color:transparent;margin:8px 0;"><p style="margin:0;font-size:13px;">${note}</p></div>` : ''}
@@ -2156,6 +2170,86 @@ function editSet(exId, setIdx) {
   if (newR === null) return;
   log.sets[exId][setIdx] = { ...s, w: parseFloat(newW), r: parseInt(newR) };
   save();
+  refreshFullDetail();
+}
+
+// Returns the video ID to use - user's custom override takes priority over the built-in one
+function getVideoId(exId, ex) {
+  if (state.videoOverrides && state.videoOverrides[exId]) return state.videoOverrides[exId];
+  return ex.video || null;
+}
+
+function showVideoReplace(exId) {
+  const ex = EXERCISES[exId];
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  const currentId = getVideoId(exId, ex);
+  modal.innerHTML = `
+    <div class="modal">
+      <h2 class="serif" style="margin-bottom:8px;">Replace video</h2>
+      <p style="font-size:14px;color:var(--text-2);margin:0 0 16px;">For: <strong style="color:var(--text);">${ex.name}</strong></p>
+
+      <p style="font-size:13px;line-height:1.6;margin:0 0 12px;">1. Search YouTube for a video that clearly shows this exercise:</p>
+      <button class="btn-secondary" style="margin-bottom:16px;" onclick="window.open('https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + ' exercise proper form technique')}', '_blank')">Search YouTube for "${ex.name}"</button>
+
+      <p style="font-size:13px;line-height:1.6;margin:0 0 8px;">2. Found a good one? Paste its link or video ID below:</p>
+      <input type="text" id="newVideoInput" placeholder="youtube.com/watch?v=... or just the ID" style="margin-bottom:6px;font-size:13px;" autocomplete="off">
+      <p style="font-size:11px;color:var(--text-3);margin:0 0 16px;">Tip: on the YouTube app, tap Share → Copy Link, then paste here.</p>
+
+      <div style="display:flex;gap:8px;">
+        ${(state.videoOverrides && state.videoOverrides[exId]) ? `<button onclick="resetVideo('${exId}')" class="btn-secondary" style="flex:1;">Reset to default</button>` : ''}
+        <button onclick="this.closest('.modal-backdrop').remove()" class="btn-secondary" style="flex:1;">Cancel</button>
+        <button onclick="saveVideoReplace('${exId}')" class="btn-primary" style="flex:1;">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function extractVideoId(input) {
+  if (!input) return null;
+  input = input.trim();
+  // Already just an ID
+  if (/^[A-Za-z0-9_-]{11}$/.test(input)) return input;
+  // youtube.com/watch?v=ID
+  let m = input.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  // youtu.be/ID
+  m = input.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  // youtube.com/shorts/ID
+  m = input.match(/shorts\/([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  // embed/ID
+  m = input.match(/embed\/([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  return null;
+}
+
+function saveVideoReplace(exId) {
+  const input = document.getElementById('newVideoInput').value;
+  const id = extractVideoId(input);
+  if (!id) {
+    showToast('Could not read that link — paste a YouTube link or 11-character ID');
+    return;
+  }
+  if (!state.videoOverrides) state.videoOverrides = {};
+  state.videoOverrides[exId] = id;
+  save();
+  document.querySelector('.modal-backdrop').remove();
+  showToast('Video updated');
+  // Refresh the detail view
+  refreshFullDetail();
+}
+
+function resetVideo(exId) {
+  if (state.videoOverrides && state.videoOverrides[exId]) {
+    delete state.videoOverrides[exId];
+    save();
+  }
+  document.querySelector('.modal-backdrop').remove();
+  showToast('Reset to default video');
   refreshFullDetail();
 }
 
@@ -3209,7 +3303,7 @@ EXERCISES['glute_activate'] = {
   name: 'Glute bridge (activation)',
   cat: 'mobility',
   cues: ['On back, knees bent', 'Drive heels down, lift hips', 'Squeeze glutes hard at top', 'Ribs DOWN, don\'t arch low back'],
-  video: 'gXPDhggbWfM'
+  video: 'lfUOt_HlVb4'
 };
 
 load();
